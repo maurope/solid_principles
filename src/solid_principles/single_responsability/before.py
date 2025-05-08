@@ -8,10 +8,9 @@ from stripe.error import StripeError
 
 _ = load_dotenv()
 
-
 @dataclass
-class PaymentProcessor:
-    def process_transaction(self, customer_data, payment_data) -> Charge:
+class CustomerValidator:
+    def validate(self, customer_data):
         if not customer_data.get("name"):
             print("Invalid customer data: missing name")
             raise ValueError("Invalid customer data: missing name")
@@ -19,13 +18,24 @@ class PaymentProcessor:
         if not customer_data.get("contact_info"):
             print("Invalid customer data: missing contact info")
             raise ValueError("Invalid customer data: missing contact info")
-
+        
+@dataclass
+class PaymentDataValidator:
+    def validate(self, payment_data):
         if not payment_data.get("source"):
             print("Invalid payment data")
             raise ValueError("Invalid payment data")
 
-        stripe.api_key = os.getenv("STRIPE_API_KEY")
 
+
+@dataclass
+class PaymentProcessor:
+    def process_transaction(self, customer_data, payment_data) -> Charge:
+
+        
+
+        stripe.api_key = os.getenv("STRIPE_API_KEY")
+        # Responsabilidad de procesamiento de pago
         try:
             charge = stripe.Charge.create(
                 amount=payment_data["amount"],
@@ -37,7 +47,7 @@ class PaymentProcessor:
         except StripeError as e:
             print("Payment failed:", e)
             raise e
-
+        # Responsabilidad de la notificación
         if "email" in customer_data["contact_info"]:
             # import smtplib
             from email.mime.text import MIMEText
@@ -62,7 +72,7 @@ class PaymentProcessor:
         else:
             print("No valid contact information for notification")
             return charge
-
+        # Responsabilidad de registro  
         with open("transactions.log", "a") as log_file:
             log_file.write(
                 f"{customer_data['name']} paid {payment_data['amount']}\n"
