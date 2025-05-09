@@ -1,6 +1,5 @@
 import os
 from dataclasses import dataclass
-
 import stripe
 from dotenv import load_dotenv
 from stripe import Charge
@@ -89,14 +88,30 @@ class PaymentService:
     logger = TransactionLogger()
 
     def process_transaction(self, customer_data, payment_data) -> Charge:
-        if not self.customer_validator.validate(customer_data):
-            raise ValueError("Invalid customer data: missing data")
+        try:
+            self.customer_validator.validate(customer_data)
+        except ValueError as e:
+            raise e
+        
+        try:
+            self.payment_data_validator.validate(payment_data)
+        except ValueError as e:
+            raise e
+        
+        try:
+            charge = self.payment_processor.process_transaction(customer_data, payment_data)
+            self.notifier.send_confirmation(customer_data)
+            self.logger.log(customer_data, payment_data, charge)
+            return charge
+        except StripeError as e:
+            raise e
+        
         ...
      
 
 
 if __name__ == "__main__":
-    payment_processor = StripePaymentProcessor()
+    payment_processor = PaymentService()
 
     customer_data_with_email = {
         "name": "John Doe",
@@ -107,11 +122,16 @@ if __name__ == "__main__":
         "contact_info": {"phone": "1234567890"},
     }
 
-    payment_data = {"amount": 500, "source": "tok_mastercard", "cvv": 123}
+    #payment_data = {"amount": 500, "source": "tok_mastercard", "cvv": 123}
 
-    payment_processor.process_transaction(
-        customer_data_with_email, payment_data
-    )
-    payment_processor.process_transaction(
-        customer_data_with_phone, payment_data
-    )
+    
+    #payment_processor.process_transaction(customer_data_with_email, payment_data)
+    #payment_processor.process_transaction(customer_data_with_phone, payment_data)
+
+    # tok_radarBlock
+
+    payment_data = {"amount": 700, "source": "tok_radarBlock", "cvv": 123}
+    try:
+        payment_processor.process_transaction(customer_data_with_email, payment_data)
+    except Exception as e:
+        print(f"Error con el procesamiento: {e}")
