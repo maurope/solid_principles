@@ -26,28 +26,9 @@ class PaymentDataValidator:
             print("Invalid payment data")
             raise ValueError("Invalid payment data")
 
-
-
-@dataclass
-class PaymentProcessor:
-    def process_transaction(self, customer_data, payment_data) -> Charge:
-
-        
-
-        stripe.api_key = os.getenv("STRIPE_API_KEY")
-        # Responsabilidad de procesamiento de pago
-        try:
-            charge = stripe.Charge.create(
-                amount=payment_data["amount"],
-                currency="usd",
-                source=payment_data["source"],
-                description="Charge for " + customer_data["name"],
-            )
-            print("Payment successful")
-        except StripeError as e:
-            print("Payment failed:", e)
-            raise e
-        # Responsabilidad de la notificación
+class Notifier:
+     def send_confirmation(self, customer_data):
+         # Responsabilidad de la notificación
         if "email" in customer_data["contact_info"]:
             # import smtplib
             from email.mime.text import MIMEText
@@ -69,9 +50,9 @@ class PaymentProcessor:
                 f"send the sms using {sms_gateway}: SMS sent to {phone_number}: Thank you for your payment."
             )
 
-        else:
-            print("No valid contact information for notification")
-            return charge
+@dataclass
+class TransactionLogger:
+    def log(self, customer_data, payment_data, charge):
         # Responsabilidad de registro  
         with open("transactions.log", "a") as log_file:
             log_file.write(
@@ -79,11 +60,43 @@ class PaymentProcessor:
             )
             log_file.write(f"Payment status: {charge['status']}\n")
 
+@dataclass
+class StripePaymentProcessor:
+    def process_transaction(self, customer_data, payment_data) -> Charge:
+        # Responsabilidad de procesamiento de pago
+        stripe.api_key = os.getenv("STRIPE_API_KEY")
+        
+        try:
+            charge = stripe.Charge.create(
+                amount=payment_data["amount"],
+                currency="usd",
+                source=payment_data["source"],
+                description="Charge for " + customer_data["name"],
+            )
+            print("Payment successful")
+        except StripeError as e:
+            print("Payment failed:", e)
+            raise e
+
         return charge
+
+@dataclass
+class PaymentService:
+    customer_validator = CustomerValidator()
+    payment_data_validator = PaymentDataValidator()
+    payment_processor = StripePaymentProcessor()
+    notifier = Notifier()
+    logger = TransactionLogger()
+
+    def process_transaction(self, customer_data, payment_data) -> Charge:
+        if not self.customer_validator.validate(customer_data):
+            raise ValueError("Invalid customer data: missing data")
+        ...
+     
 
 
 if __name__ == "__main__":
-    payment_processor = PaymentProcessor()
+    payment_processor = StripePaymentProcessor()
 
     customer_data_with_email = {
         "name": "John Doe",
